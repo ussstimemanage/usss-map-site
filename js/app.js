@@ -175,6 +175,7 @@ function setData(d, source, label){
     wb.innerHTML = `<details class="warn"><summary>読み込み時の注意 ${d.warnings.length}件（該当行は表示していません）</summary><ul>${d.warnings.slice(0,50).map(w=>`<li>${esc(w)}</li>`).join('')}</ul></details>`;
   } else { wb.hidden = true; wb.innerHTML = ''; }
   buildFilters(); render(); fitMap();
+  if (typeof refreshDatePage === 'function') refreshDatePage();
 }
 
 /* ---------- 絞り込み ---------- */
@@ -479,20 +480,6 @@ $('#clearBtn').addEventListener('click', clearFilters);
 $('#year').addEventListener('change', e => { state.f.year = e.target.value; state.limit = 60; render(); });
 let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.f.q = e.target.value.trim(); state.limit = 60; render(); }, 150); });
 
-$('#fileInput').addEventListener('change', async e => {
-  const file = e.target.files[0]; if (!file) return;
-  if (!window.XLSX){ $('#dataStatusText').textContent = 'Excel読み込み用のライブラリを読み込めませんでした'; return; }
-  try {
-    const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:false});
-    const d = fromWorkbook(wb, XLSX);
-    state.region = null; vb = FULL.slice(); svg.setAttribute('viewBox', FULL.join(' '));
-    setData(d, 'file', `${file.name}（${d.shows.length}公演・${d.venues.size}会場）`);
-  } catch(err){
-    $('#dataStatusText').textContent = '読み込めませんでした：' + err.message;
-    $('#dataStatus').classList.remove('ok');
-  }
-  e.target.value = '';
-});
 
 /* ---------- 起動 ---------- */
 // 地図を画面の残りの高さに合わせて縮め、ページ全体がスクロールしないようにする
@@ -545,8 +532,62 @@ $('#panel').innerHTML = '<div class="panel-head"><p class="eyebrow">公演記録
     setData(d, 'site', `公演データ ${sumW(d.shows)}公演`);
   } catch(err){ fail(err.message); }
 })();
+/* ---------- 日付から検索 ---------- */
+function md(s){ return s.date.slice(5); }   // "MM-DD"（起動直後から使うので関数宣言にする）
+function fillDateSelects(){
+  const years = [...new Set(state.data.shows.map(s => s.year))].sort().reverse();
+  const yv = $('#dYear').value;
+  $('#dYear').innerHTML = '<option value="">指定なし</option>' + years.map(y => `<option value="${y}">${y}年</option>`).join('');
+  $('#dYear').value = years.includes(yv) ? yv : '';
+  if ($('#dMonth').options.length === 1)
+    $('#dMonth').insertAdjacentHTML('beforeend', Array.from({length:12}, (_,i) => `<option value="${i+1}">${i+1}月</option>`).join(''));
+  fillDays();
+}
+// 月に合わせて日の選択肢を出す（2月は29日まで）
+function fillDays(){
+  const m = +$('#dMonth').value, dv = $('#dDay').value;
+  const max = m ? [31,29,31,30,31,30,31,31,30,31,30,31][m-1] : 31;
+  $('#dDay').innerHTML = '<option value="">選択</option>' + Array.from({length:max}, (_,i) => `<option value="${i+1}">${i+1}日</option>`).join('');
+  if (dv && +dv <= max) $('#dDay').value = dv;
+}
+function renderDateResult(){
+  const y = $('#dYear').value, m = $('#dMonth').value, d = $('#dDay').value, out = $('#dateResult');
+  if (!m || !d){ out.innerHTML = '<p class="dmsg">月/日を選択してください</p>'; return; }
+  const key = `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const hits = state.data.shows.filter(s => md(s) === key && (!y || s.year === y))
+    .sort((a,b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));   // 新しい順
+  const label = `${y ? y + '年' : ''}${m}月${d}日`;
+  if (!hits.length){ out.innerHTML = `<p class="dmsg">該当する公演はありませんでした</p>`; return; }
+  out.innerHTML = `<div class="dhead"><h3>${label}の公演</h3><span class="stats"><span><b>${sumW(hits)}</b>公演</span></span></div>
+    <ol class="list dlist">${hits.map(showRow).join('')}</ol>`;
+}
+// 同じ月日の開催回数ランキング（全年・開催中止は除く・昼夜2公演は2回）
+function renderDateRank(){
+  const cnt = new Map();
+  state.data.shows.forEach(s => { if (s.weight) cnt.set(md(s), (cnt.get(md(s)) || 0) + s.weight); });
+  // 回数ごとにまとめる → 回数の多い順に 1位,2位,3位…（同率がいくつあっても順位は詰めて数える）
+  const groups = new Map();
+  [...cnt.entries()].sort((a,b) => a[0].localeCompare(b[0])).forEach(([k,n]) => { if (!groups.has(n)) groups.set(n, []); groups.get(n).push(k); });
+  const ranks = [...groups.entries()].sort((a,b) => b[0] - a[0]).slice(0, 5);
+  $('#dateRank').innerHTML = ranks.length ? ranks.map(([n, keys], i) => {
+    const dates = keys.map(k => { const [mm,dd] = k.split('-').map(Number); return `<button type="button" class="rd" data-md="${mm}-${dd}">${mm}月${dd}日</button>`; }).join('');
+    return `<li class="${i===0?'first':''}"><span class="rn">${i+1}位</span><span class="rds">${dates}</span><span class="rc">${n}回</span></li>`;
+  }).join('') : '<li class="dmsg">データがありません</li>';
+}
+function refreshDatePage(){ fillDateSelects(); renderDateRank(); renderDateResult(); }
+$('#dateForm').addEventListener('change', e => { if (e.target.id === 'dMonth') fillDays(); renderDateResult(); });
+$('#dateForm').addEventListener('submit', e => e.preventDefault());
+// リセット：年・月・日をすべて未選択に戻す
+$('#dateForm').addEventListener('reset', () => setTimeout(() => { fillDays(); renderDateResult(); }, 0));
+$('#dateRank').addEventListener('click', e => {
+  const b = e.target.closest('[data-md]'); if (!b) return;
+  const [mm,dd] = b.dataset.md.split('-');
+  $('#dYear').value = ''; $('#dMonth').value = mm; fillDays(); $('#dDay').value = dd; renderDateResult();
+  $('#dateResult').scrollIntoView({behavior:'smooth', block:'nearest'});
+});
+$('#dateResult').addEventListener('click', e => { const v = e.target.closest('[data-venue]'); if (v) openVenue(v.dataset.venue); });
 /* ---------- 画面の切り替え（トップ／お問い合わせ先／プライバシーポリシー） ---------- */
-const VIEWS = {main:'view-main', contact:'view-contact', privacy:'view-privacy'};
+const VIEWS = {main:'view-main', date:'view-date', contact:'view-contact', privacy:'view-privacy'};
 function showView(name){
   if (!VIEWS[name]) name = 'main';
   for (const [k,id] of Object.entries(VIEWS)) document.getElementById(id).hidden = k !== name;
@@ -583,4 +624,4 @@ document.addEventListener('click', e => {
   a.dataset.view === 'top' ? goTop() : showView(a.dataset.view);
 });
 addEventListener('hashchange', () => showView(location.hash.slice(1)));
-{ const h = location.hash.slice(1); if (h === 'contact' || h === 'privacy') showView(h); }
+{ const h = location.hash.slice(1); if (h === 'date' || h === 'contact' || h === 'privacy') showView(h); }
