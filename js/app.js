@@ -355,7 +355,7 @@ function overviewPanel(shows){
   const vset = new Set(live.map(s => s.venueId));
   const pset = new Set(live.map(s => venueOf(s).pref).filter(p => p && !SPECIAL.has(p)));
   return `<div class="panel-head">
-      <div><p class="eyebrow">公演記録</p><h2>${state.f.year ? state.f.year+'年の公演' : 'すべての年の公演'}</h2></div>
+      <div><p class="eyebrow">公演記録</p><h2>${state.f.year ? esc(state.f.year)+'年の公演' : 'すべての年の公演'}</h2></div>
       ${yearTabs()}
       <div class="stats"><span><b>${sumW(shows)}</b>公演</span><span><b>${vset.size}</b>会場</span><span><b>${pset.size}</b>都道府県</span>${memberStats(shows)}</div>
     </div>
@@ -388,7 +388,7 @@ function regionPanel(shows, byPref){
     }).join('') + '</div>';
   }
   return `<div class="panel-head">
-      <div><p class="eyebrow">${r.special ? '公演記録' : 'エリア'}</p><h2 style="--rc:var(--r-${r.id})"><i></i>${r.name}${state.f.year ? `<small style="font-size:.8rem;color:var(--muted);font-family:var(--font)">${state.f.year}年</small>` : ''}</h2></div>
+      <div><p class="eyebrow">${r.special ? '公演記録' : 'エリア'}</p><h2 style="--rc:var(--r-${r.id})"><i></i>${r.name}${state.f.year ? `<small style="font-size:.8rem;color:var(--muted);font-family:var(--font)">${esc(state.f.year)}年</small>` : ''}</h2></div>
       ${yearTabs()}
       <div class="stats"><span><b>${total}</b>公演</span>${memberStats(inRegion)}</div>
       ${r.special ? '' : '<p class="eyebrow" style="letter-spacing:.04em">都道府県名を押すと会場が開きます</p>'}
@@ -456,7 +456,7 @@ document.addEventListener('click', e => {
   const m = e.target.closest('[data-member]');
   if (m){ const v = m.dataset.member; state.f.members.has(v) ? state.f.members.delete(v) : state.f.members.add(v); render(); }
   const y = e.target.closest('[data-year]');
-  if (y){ state.f.year = y.dataset.year; render(); }
+  if (y){ state.f.year = safeYear(y.dataset.year); render(); }
 });
 $('#panel').addEventListener('click', e => {
   const v = e.target.closest('[data-venue]'); if (v){ openVenue(v.dataset.venue); return; }
@@ -477,7 +477,7 @@ $('#venueDlg').addEventListener('click', e => {
 });
 function clearFilters(){ state.f = {q:'', year:'', types:new Set(), members:new Set()}; $('#q').value=''; state.limit = 60; render(); }
 $('#clearBtn').addEventListener('click', clearFilters);
-$('#year').addEventListener('change', e => { state.f.year = e.target.value; state.limit = 60; render(); });
+$('#year').addEventListener('change', e => { state.f.year = safeYear(e.target.value); state.limit = 60; render(); });
 let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.f.q = e.target.value.trim(); state.limit = 60; render(); }, 150); });
 
 
@@ -533,6 +533,8 @@ $('#panel').innerHTML = '<div class="panel-head"><p class="eyebrow">公演記録
   } catch(err){ fail(err.message); }
 })();
 /* ---------- 日付から検索 ---------- */
+// 開催年は4桁の数字のみ（それ以外は「すべての年」扱い）
+function safeYear(v){ return /^\d{4}$/.test(String(v)) ? String(v) : ''; }
 function md(s){ return s.date.slice(5); }   // "MM-DD"（起動直後から使うので関数宣言にする）
 function fillDateSelects(){
   const years = [...new Set(state.data.shows.map(s => s.year))].sort().reverse();
@@ -551,15 +553,19 @@ function fillDays(){
   if (dv && +dv <= max) $('#dDay').value = dv;
 }
 function renderDateResult(){
-  const y = $('#dYear').value, m = $('#dMonth').value, d = $('#dDay').value, out = $('#dateResult');
+  // 選択値は数値に変換して使う（想定外の値がHTMLとして解釈されないように）
+  const yn = parseInt($('#dYear').value, 10), mn = parseInt($('#dMonth').value, 10), dn = parseInt($('#dDay').value, 10);
+  const y = yn >= 1900 && yn <= 2999 ? String(yn) : '';
+  const m = mn >= 1 && mn <= 12 ? mn : 0, d = dn >= 1 && dn <= 31 ? dn : 0, out = $('#dateResult');
   if (!m || !d){ out.innerHTML = '<p class="dmsg">月/日を選択してください</p>'; return; }
   const key = `${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   const hits = state.data.shows.filter(s => md(s) === key && (!y || s.year === y))
     .sort((a,b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));   // 新しい順
   const label = `${y ? y + '年' : ''}${m}月${d}日`;
   if (!hits.length){ out.innerHTML = `<p class="dmsg">該当する公演はありませんでした</p>`; return; }
-  out.innerHTML = `<div class="dhead"><h3>${label}の公演</h3><span class="stats"><span><b>${sumW(hits)}</b>公演</span></span></div>
+  out.innerHTML = `<div class="dhead"><h3></h3><span class="stats"><span><b>${sumW(hits)}</b>公演</span></span></div>
     <ol class="list dlist">${hits.map(showRow).join('')}</ol>`;
+  out.querySelector('.dhead h3').textContent = `${label}の公演`;
 }
 // 同じ月日の開催回数ランキング（全年・開催中止は除く・昼夜2公演は2回）
 function renderDateRank(){
