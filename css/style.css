@@ -286,3 +286,29 @@ footer{display:flex;flex-direction:column;align-items:center;gap:8px;margin-inli
 footer p{margin:0}
 .foot-links{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px}
 .foot-links a{color:var(--accent);font-size:.82rem}
+
+/* ---------- 日付から検索 ---------- */
+.datepage{width:100%;max-width:1040px;margin:0 auto;display:grid;grid-template-columns:minmax(200px,230px) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:760px){.datepage{grid-template-columns:minmax(0,1fr)}.rank{order:2}}
+.rank{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 14px 10px;font-size:.82rem}
+.rank h3{margin:2px 0 10px;font-size:.9rem}
+.rank ol{list-style:none;margin:0;padding:0}
+.rank li{display:grid;grid-template-columns:2.2em minmax(0,1fr) auto;align-items:baseline;gap:6px;padding:7px 2px;border-top:1px solid var(--line)}
+.rank li:first-child{border-top:0}
+.rank .rds{display:flex;flex-wrap:wrap;gap:2px 8px;min-width:0}
+.rank .rd{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--ink);cursor:pointer;white-space:nowrap}
+.rank .rd:hover{color:var(--accent);text-decoration:underline}
+.rank .rn{font-family:var(--font-num);font-weight:700;color:var(--muted)}
+.rank li.first .rn{color:var(--accent)}
+.rank .rc{font-family:var(--font-num);color:var(--muted);font-variant-numeric:tabular-nums}
+.rank .rnote{margin:8px 0 0;color:var(--muted);font-size:.72rem;line-height:1.5}
+.dsearch{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dsearch .doc{max-width:none;margin:0}
+.dform{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 14px}
+.dform label{display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:var(--muted);letter-spacing:.06em}
+.dform select{min-width:6.5em;font-size:.95rem}
+.dmsg{color:var(--muted);padding:18px 2px;margin:0}
+.dhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.dhead h3{margin:0;padding:0;border:0;font-family:var(--font-display);font-size:1.25rem}
+.dhead .stats b{font-size:1.2rem}
+.dlist .show:first-child{border-top:0}
