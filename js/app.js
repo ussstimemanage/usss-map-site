@@ -479,21 +479,6 @@ $('#clearBtn').addEventListener('click', clearFilters);
 $('#year').addEventListener('change', e => { state.f.year = e.target.value; state.limit = 60; render(); });
 let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.f.q = e.target.value.trim(); state.limit = 60; render(); }, 150); });
 
-$('#fileInput').addEventListener('change', async e => {
-  const file = e.target.files[0]; if (!file) return;
-  if (!window.XLSX){ $('#dataStatusText').textContent = 'Excel読み込み用のライブラリを読み込めませんでした'; return; }
-  try {
-    const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:false});
-    const d = fromWorkbook(wb, XLSX);
-    state.region = null; vb = FULL.slice(); svg.setAttribute('viewBox', FULL.join(' '));
-    setData(d, 'file', `${file.name}（${d.shows.length}公演・${d.venues.size}会場）`);
-  } catch(err){
-    $('#dataStatusText').textContent = '読み込めませんでした：' + err.message;
-    $('#dataStatus').classList.remove('ok');
-  }
-  e.target.value = '';
-});
-
 /* ---------- 起動 ---------- */
 // 地図を画面の残りの高さに合わせて縮め、ページ全体がスクロールしないようにする
 function fitMap(){
